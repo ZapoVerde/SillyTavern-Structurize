@@ -37,8 +37,8 @@
  *     external_io: none
  */
 
-import { eventSource, event_types, extension_settings, saveSettingsDebounced } from '../../../../script.js';
-import { renderExtensionTemplateAsync } from '../../../extensions.js';
+import { eventSource, event_types, saveSettingsDebounced } from '../../../../script.js';
+import { extension_settings } from '../../../extensions.js';
 
 // ---------------------------------------------------------------------------
 // Constants
