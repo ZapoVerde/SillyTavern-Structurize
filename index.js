@@ -1,7 +1,7 @@
 /**
  * @file data/default-user/extensions/structurize/index.js
  * @stamp {"utc":"2026-03-26T00:00:00.000Z"}
- * @version 1.0.1
+ * @version 1.0.2
  * @architectural-role Feature Entry Point
  * @description
  * SillyTavern Structurize — post-scan lorebook formatter that intercepts
