@@ -1,7 +1,7 @@
 /**
  * @file data/default-user/extensions/structurize/index.js
  * @stamp {"utc":"2026-03-27T00:00:00.000Z"}
- * @version 1.0.5
+ * @version 1.0.6
  * @architectural-role Feature Entry Point
  * @description
  * SillyTavern Structurize — post-scan lorebook formatter that intercepts
@@ -52,8 +52,8 @@ const HEADER_KEY = '_stx.header';
 const FOOTER_KEY = '_stx.footer';
 
 // order values for synthetic entries. Real entries are clamped 0–9999 by ST's UI.
-const HEADER_ORDER = 999999;   // sorts first  (sort is descending: b.order - a.order)
-const FOOTER_ORDER = -999999;  // sorts last
+const HEADER_ORDER = -999999;  // sorts last in descending sort → injected first (top of WI block)
+const FOOTER_ORDER = 999999;   // sorts first in descending sort → injected last (bottom of WI block)
 
 const DEFAULTS = {
     enabled: true,
