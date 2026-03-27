@@ -1,7 +1,7 @@
 /**
  * @file data/default-user/extensions/structurize/index.js
- * @stamp {"utc":"2026-03-26T00:00:00.000Z"}
- * @version 1.0.3
+ * @stamp {"utc":"2026-03-27T00:00:00.000Z"}
+ * @version 1.0.4
  * @architectural-role Feature Entry Point
  * @description
  * SillyTavern Structurize — post-scan lorebook formatter that intercepts
@@ -107,20 +107,32 @@ function formatEntries(scanState) {
 
     // 2. Format each real entry (mutate content in-place; ST reads entry.content after this event)
     let formatted = 0;
+    const toFormat = [];
     for (const entry of activatedMap.values()) {
         if (entry._stx) {
-            console.log(`[structurize] skip (already formatted): "${entry.title}"`);
+            console.log(`[structurize] skip (already formatted): "${entry.comment}"`);
             continue;   // recursive scan guard
         }
-        if (!entry.title || !entry.content) {
+        if (!entry.comment || !entry.content) {
             console.log(`[structurize] skip (no title/content): uid=${entry.uid}`);
             continue;
         }
+        toFormat.push(entry);
+    }
 
-        entry.content = `${formatTitle(entry.title, settings.titleFormat)}\n${entry.content}`;
+    for (let i = 0; i < toFormat.length; i++) {
+        const entry = toFormat[i];
+        let text = `${formatTitle(entry.comment, settings.titleFormat)}\n${entry.content}`;
+        if (i === 0 && settings.showHeader && settings.headerText) {
+            text = `${settings.headerText}\n${text}`;
+        }
+        if (i === toFormat.length - 1 && settings.showFooter && settings.footerText) {
+            text = `${text}\n${settings.footerText}`;
+        }
+        entry.content = text;
         entry._stx = true;
         formatted++;
-        console.log(`[structurize] formatted entry: "${entry.title}"`);
+        console.log(`[structurize] formatted entry: "${entry.comment}"`);
     }
 
     console.log(`[structurize] done — formatted ${formatted} entries`);
