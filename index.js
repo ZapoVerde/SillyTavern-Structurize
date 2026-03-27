@@ -1,7 +1,7 @@
 /**
  * @file data/default-user/extensions/structurize/index.js
  * @stamp {"utc":"2026-03-27T00:00:00.000Z"}
- * @version 1.0.4
+ * @version 1.0.5
  * @architectural-role Feature Entry Point
  * @description
  * SillyTavern Structurize — post-scan lorebook formatter that intercepts
@@ -45,6 +45,15 @@ import { extension_settings } from '../../../extensions.js';
 // ---------------------------------------------------------------------------
 
 const EXT_NAME = 'structurize';
+
+// Keys for synthetic header/footer entries injected into the activated Map.
+// Real entry keys are "worldName.uid"; these use a prefix that cannot collide.
+const HEADER_KEY = '_stx.header';
+const FOOTER_KEY = '_stx.footer';
+
+// order values for synthetic entries. Real entries are clamped 0–9999 by ST's UI.
+const HEADER_ORDER = 999999;   // sorts first  (sort is descending: b.order - a.order)
+const FOOTER_ORDER = -999999;  // sorts last
 
 const DEFAULTS = {
     enabled: true,
@@ -105,34 +114,42 @@ function formatEntries(scanState) {
 
     console.log(`[structurize] formatting ${activatedMap.size} activated entries`);
 
-    // 2. Format each real entry (mutate content in-place; ST reads entry.content after this event)
+    // Format each real entry (mutate content in-place; ST reads entry.content after this event).
+    // Dummy entries (_stx.header / _stx.footer) have no comment so the guard below skips them.
     let formatted = 0;
-    const toFormat = [];
     for (const entry of activatedMap.values()) {
-        if (entry._stx) {
-            console.log(`[structurize] skip (already formatted): "${entry.comment}"`);
-            continue;   // recursive scan guard
-        }
+        if (entry._stx) continue;   // already formatted (recursive scan guard)
         if (!entry.comment || !entry.content) {
             console.log(`[structurize] skip (no title/content): uid=${entry.uid}`);
             continue;
         }
-        toFormat.push(entry);
-    }
-
-    for (let i = 0; i < toFormat.length; i++) {
-        const entry = toFormat[i];
-        let text = `${formatTitle(entry.comment, settings.titleFormat)}\n${entry.content}`;
-        if (i === 0 && settings.showHeader && settings.headerText) {
-            text = `${settings.headerText}\n${text}`;
-        }
-        if (i === toFormat.length - 1 && settings.showFooter && settings.footerText) {
-            text = `${text}\n${settings.footerText}`;
-        }
-        entry.content = text;
+        entry.content = `${formatTitle(entry.comment, settings.titleFormat)}\n${entry.content}`;
         entry._stx = true;
         formatted++;
         console.log(`[structurize] formatted entry: "${entry.comment}"`);
+    }
+
+    // Upsert synthetic header/footer entries into the activated Map.
+    // ST's assembly loop sorts by order descending (b.order - a.order), so:
+    //   HEADER_ORDER (999999) → before all real entries (max real order: 9999)
+    //   FOOTER_ORDER (-999999) → after all real entries (min real order: 0)
+    // We upsert on every firing so the Map always reflects current settings,
+    // even across recursive scan passes.
+    const hasReal = activatedMap.size > (activatedMap.has(HEADER_KEY) ? 1 : 0)
+                                      + (activatedMap.has(FOOTER_KEY) ? 1 : 0);
+
+    if (hasReal && settings.showHeader && settings.headerText) {
+        activatedMap.set(HEADER_KEY, { content: settings.headerText, position: 0, order: HEADER_ORDER });
+        console.log('[structurize] upserted header entry');
+    } else {
+        activatedMap.delete(HEADER_KEY);
+    }
+
+    if (hasReal && settings.showFooter && settings.footerText) {
+        activatedMap.set(FOOTER_KEY, { content: settings.footerText, position: 0, order: FOOTER_ORDER });
+        console.log('[structurize] upserted footer entry');
+    } else {
+        activatedMap.delete(FOOTER_KEY);
     }
 
     console.log(`[structurize] done — formatted ${formatted} entries`);
