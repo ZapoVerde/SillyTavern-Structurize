@@ -1,7 +1,7 @@
 /**
  * @file data/default-user/extensions/structurize/index.js
  * @stamp {"utc":"2026-03-26T00:00:00.000Z"}
- * @version 1.0.2
+ * @version 1.0.3
  * @architectural-role Feature Entry Point
  * @description
  * SillyTavern Structurize — post-scan lorebook formatter that intercepts
@@ -88,40 +88,42 @@ function formatTitle(title, fmt) {
 // ---------------------------------------------------------------------------
 
 function formatEntries(scanState) {
+    console.log('[structurize] WORLDINFO_SCAN_DONE fired', scanState);
+
     const settings = getSettings();
-    if (!settings.enabled) return;
-    if (!scanState?.activatedEntries?.length) return;
-
-    const entries = scanState.activatedEntries;
-
-    // 1. Prepend global header (once per scan)
-    if (settings.showHeader && settings.headerText && !entries[0]?._stxHeader) {
-        entries.unshift({
-            title: '',
-            content: `${settings.headerText}\n`,
-            _stxHeader: true,
-        });
+    if (!settings.enabled) {
+        console.log('[structurize] disabled — skipping');
+        return;
     }
 
-    // 2. Format each real entry
-    for (const entry of entries) {
-        if (entry._stxHeader || entry._stxFooter) continue;   // skip synthetic bookends
-        if (entry._stx) continue;                             // recursive scan guard
-        if (!entry.title || !entry.content) continue;
+    // ST passes activated entries at scanState.activated.entries (a Map keyed by "world.uid")
+    const activatedMap = scanState?.activated?.entries;
+    if (!activatedMap?.size) {
+        console.log('[structurize] no activated entries (map size:', activatedMap?.size ?? 'map missing', ') — skipping');
+        return;
+    }
+
+    console.log(`[structurize] formatting ${activatedMap.size} activated entries`);
+
+    // 2. Format each real entry (mutate content in-place; ST reads entry.content after this event)
+    let formatted = 0;
+    for (const entry of activatedMap.values()) {
+        if (entry._stx) {
+            console.log(`[structurize] skip (already formatted): "${entry.title}"`);
+            continue;   // recursive scan guard
+        }
+        if (!entry.title || !entry.content) {
+            console.log(`[structurize] skip (no title/content): uid=${entry.uid}`);
+            continue;
+        }
 
         entry.content = `${formatTitle(entry.title, settings.titleFormat)}\n${entry.content}`;
         entry._stx = true;
+        formatted++;
+        console.log(`[structurize] formatted entry: "${entry.title}"`);
     }
 
-    // 3. Append footer (once per scan, after all real entries)
-    const last = entries[entries.length - 1];
-    if (settings.showFooter && settings.footerText && !last?._stxFooter) {
-        entries.push({
-            title: '',
-            content: settings.footerText,
-            _stxFooter: true,
-        });
-    }
+    console.log(`[structurize] done — formatted ${formatted} entries`);
 }
 
 // ---------------------------------------------------------------------------
