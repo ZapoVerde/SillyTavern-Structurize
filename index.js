@@ -123,7 +123,14 @@ function formatEntries(scanState) {
             console.log(`[structurize] skip (no title/content): uid=${entry.uid}`);
             continue;
         }
-        entry.content = `${formatTitle(entry.comment, settings.titleFormat)}\n${entry.content}`;
+        if (settings.titleFormat === 'xml') {
+            const tag = entry.comment.replace(/\s+/g, '_');
+            entry.content = `<${tag}>\n${entry.content}\n</${tag}>`;
+        } else if (settings.titleFormat === 'xml_raw') {
+            entry.content = `<${entry.comment}>\n${entry.content}\n</${entry.comment}>`;
+        } else {
+            entry.content = `${formatTitle(entry.comment, settings.titleFormat)}\n${entry.content}`;
+        }
         entry._stx = true;
         formatted++;
         console.log(`[structurize] formatted entry: "${entry.comment}"`);
@@ -183,6 +190,8 @@ async function addSettingsPanel() {
                 <option value="bracket">[Title]</option>
                 <option value="bold">**Title**</option>
                 <option value="heading">### Title</option>
+                <option value="xml">&lt;Title_No_Spaces&gt;...&lt;/Title_No_Spaces&gt;</option>
+                <option value="xml_raw">&lt;Title As Is&gt;...&lt;/Title As Is&gt;</option>
             </select>
             <label class="checkbox_label">
                 <input type="checkbox" id="stx_show_footer" />
