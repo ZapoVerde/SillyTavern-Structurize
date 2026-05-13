@@ -57,12 +57,28 @@ const FOOTER_ORDER = 999999;   // sorts first in descending sort → injected la
 
 const DEFAULTS = {
     enabled: true,
+    verbose: false,
     showHeader: true,
     headerText: 'The following is an index of important characters and ideas from the story:',
     titleFormat: 'bracket',   // 'bracket' → [Title] | 'bold' → **Title** | 'heading' → ### Title
     showFooter: true,
     footerText: '\nEnd Index\n',
 };
+
+// ---------------------------------------------------------------------------
+// Logging
+// ---------------------------------------------------------------------------
+
+function log(event, data) {
+    if (!getSettings().verbose) return;
+    if (data !== undefined) console.log(`[${EXT_NAME}] ${event}`, data);
+    else console.log(`[${EXT_NAME}] ${event}`);
+}
+
+function error(event, data) {
+    if (data !== undefined) console.error(`[${EXT_NAME}] ${event}`, data);
+    else console.error(`[${EXT_NAME}] ${event}`);
+}
 
 // ---------------------------------------------------------------------------
 // Settings helpers
@@ -97,22 +113,22 @@ function formatTitle(title, fmt) {
 // ---------------------------------------------------------------------------
 
 function formatEntries(scanState) {
-    console.log('[structurize] WORLDINFO_SCAN_DONE fired', scanState);
+    log('WORLDINFO_SCAN_DONE fired', scanState);
 
     const settings = getSettings();
     if (!settings.enabled) {
-        console.log('[structurize] disabled — skipping');
+        log('disabled — skipping');
         return;
     }
 
     // ST passes activated entries at scanState.activated.entries (a Map keyed by "world.uid")
     const activatedMap = scanState?.activated?.entries;
     if (!activatedMap?.size) {
-        console.log('[structurize] no activated entries (map size:', activatedMap?.size ?? 'map missing', ') — skipping');
+        log('no activated entries — skipping', { size: activatedMap?.size ?? 'map missing' });
         return;
     }
 
-    console.log(`[structurize] formatting ${activatedMap.size} activated entries`);
+    log(`formatting ${activatedMap.size} activated entries`);
 
     // Format each real entry (mutate content in-place; ST reads entry.content after this event).
     // Dummy entries (_stx.header / _stx.footer) have no comment so the guard below skips them.
@@ -120,7 +136,7 @@ function formatEntries(scanState) {
     for (const entry of activatedMap.values()) {
         if (entry._stx) continue;   // already formatted (recursive scan guard)
         if (!entry.comment || !entry.content) {
-            console.log(`[structurize] skip (no title/content): uid=${entry.uid}`);
+            log(`skip (no title/content): uid=${entry.uid}`);
             continue;
         }
         if (settings.titleFormat === 'xml') {
@@ -133,7 +149,7 @@ function formatEntries(scanState) {
         }
         entry._stx = true;
         formatted++;
-        console.log(`[structurize] formatted entry: "${entry.comment}"`);
+        log(`formatted entry: "${entry.comment}"`);
     }
 
     // Upsert synthetic header/footer entries into the activated Map.
@@ -147,19 +163,19 @@ function formatEntries(scanState) {
 
     if (hasReal && settings.showHeader && settings.headerText) {
         activatedMap.set(HEADER_KEY, { content: settings.headerText, position: 0, order: HEADER_ORDER });
-        console.log('[structurize] upserted header entry');
+        log('upserted header entry');
     } else {
         activatedMap.delete(HEADER_KEY);
     }
 
     if (hasReal && settings.showFooter && settings.footerText) {
         activatedMap.set(FOOTER_KEY, { content: settings.footerText, position: 0, order: FOOTER_ORDER });
-        console.log('[structurize] upserted footer entry');
+        log('upserted footer entry');
     } else {
         activatedMap.delete(FOOTER_KEY);
     }
 
-    console.log(`[structurize] done — formatted ${formatted} entries`);
+    log(`done — formatted ${formatted} entries`);
 }
 
 // ---------------------------------------------------------------------------
@@ -178,6 +194,10 @@ async function addSettingsPanel() {
             <label class="checkbox_label">
                 <input type="checkbox" id="stx_enabled" />
                 <span>Enable formatting</span>
+            </label>
+            <label class="checkbox_label">
+                <input type="checkbox" id="stx_verbose" />
+                <span>Verbose logging</span>
             </label>
             <label class="checkbox_label">
                 <input type="checkbox" id="stx_show_header" />
@@ -209,6 +229,7 @@ async function addSettingsPanel() {
 
     // Populate
     $('#stx_enabled').prop('checked', s.enabled);
+    $('#stx_verbose').prop('checked', s.verbose);
     $('#stx_show_header').prop('checked', s.showHeader);
     $('#stx_header_text').val(s.headerText);
     $('#stx_title_format').val(s.titleFormat);
@@ -218,6 +239,10 @@ async function addSettingsPanel() {
     // Wire up
     $('#stx_enabled').on('change', function () {
         getSettings().enabled = this.checked;
+        saveSettingsDebounced();
+    });
+    $('#stx_verbose').on('change', function () {
+        getSettings().verbose = this.checked;
         saveSettingsDebounced();
     });
     $('#stx_show_header').on('change', function () {
