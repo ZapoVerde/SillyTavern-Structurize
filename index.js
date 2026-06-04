@@ -1,7 +1,7 @@
 /**
  * @file data/default-user/extensions/structurize/index.js
- * @stamp {"utc":"2026-03-27T00:00:00.000Z"}
- * @version 1.0.6
+ * @stamp {"utc":"2026-06-04T00:00:00.000Z"}
+ * @version 1.0.7
  * @architectural-role Feature Entry Point
  * @description
  * SillyTavern Structurize — post-scan lorebook formatter that intercepts
@@ -139,13 +139,19 @@ function formatEntries(scanState) {
             log(`skip (no title/content): uid=${entry.uid}`);
             continue;
         }
+        const keys    = Array.isArray(entry.key) && entry.key.length ? `(${entry.key.join(', ')})` : '';
         if (settings.titleFormat === 'xml') {
             const tag = entry.comment.replace(/\s+/g, '_');
-            entry.content = `<${tag}>\n${entry.content}\n</${tag}>`;
+            const body = keys ? `${keys}\n${entry.content}` : entry.content;
+            entry.content = `<${tag}>\n${body}\n</${tag}>`;
         } else if (settings.titleFormat === 'xml_raw') {
-            entry.content = `<${entry.comment}>\n${entry.content}\n</${entry.comment}>`;
+            const body = keys ? `${keys}\n${entry.content}` : entry.content;
+            entry.content = `<${entry.comment}>\n${body}\n</${entry.comment}>`;
         } else {
-            entry.content = `${formatTitle(entry.comment, settings.titleFormat)}\n${entry.content}`;
+            const lines = [formatTitle(entry.comment, settings.titleFormat)];
+            if (keys) lines.push(keys);
+            lines.push(entry.content);
+            entry.content = lines.join('\n');
         }
         entry._stx = true;
         formatted++;
