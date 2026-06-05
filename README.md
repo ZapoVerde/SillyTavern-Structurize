@@ -1,56 +1,148 @@
 # Structurize
 
-A SillyTavern extension that formats activated lorebook entries before they are injected into the prompt.
+When SillyTavern injects lorebook entries into the prompt, the AI receives only the entry's body text. The entry title, aliases, and trigger keywords are discarded before the prompt is assembled.
 
-## What it does
+This is often harmless when the entry repeats its own name, but if the entry does not do that, we lose the most important part of the context.
 
-Hooks the `WORLDINFO_SCAN_DONE` event (ST 1.15+) and rewrites each activated entry's content with a structured title header. If the entry has primary keywords, they are emitted as an alias line directly below the title. Optionally wraps the entire block with a configurable header and footer line.
+Consider this lorebook entry:
 
-**Example output in prompt:**
+**Title**
+
+```
+Elena Valcieri
+```
+
+**Keywords**
+
+```
+elena, valcieri, beth
+```
+
+**Content**
+
+```
+Matriarch of House Valcieri. Controls the family's finances and
+oversees its political alliances. Known for her patience,
+political skill, and ruthless pragmatism.
+```
+
+What SillyTavern injects:
+
+```
+Matriarch of House Valcieri. Controls the family's finances and
+oversees its political alliances. Known for her patience,
+political skill, and ruthless pragmatism.
+```
+
+The AI receives the facts, but never sees the name "Elena Valcieri" or any of the entry's aliases.
+
+Structurize restores that missing structure. It wraps every activated lorebook entry in a template of your choice, reinserting the title and keywords directly into the prompt. It can also add a header and footer around the entire lorebook section, giving the AI clear boundaries around injected knowledge.
+
+With the default template, the same entry becomes:
+
+```
+<Elena Valcieri>
+(elena, valcieri, beth)
+Matriarch of House Valcieri. Controls the family's finances and
+oversees its political alliances. Known for her patience,
+political skill, and ruthless pragmatism.
+</Elena Valcieri>
+```
+
+---
+
+## Installation
+
+1. Open SillyTavern and click the **Extensions** icon (the puzzle piece).
+2. Click **Install extension**.
+3. Paste:
+
+   ```
+   https://github.com/ZapoVerde/SillyTavern-Structurize
+   ```
+4. Click **Install just for me** or **Install for all users**.
+5. Structurize will appear in your extensions list. Formatting is enabled by default.
+
+---
+
+## How It Works
+
+For every activated lorebook entry, Structurize applies an **entry template** before the text reaches the AI.
+
+Templates can use three placeholders:
+
+| Placeholder   | Inserts                                              |
+| ------------- | ---------------------------------------------------- |
+| `{{title}}`   | The lorebook entry title                             |
+| `{{keys}}`    | Trigger keywords formatted as `(keyword1, keyword2)` |
+| `{{content}}` | The entry body text                                  |
+
+Default template:
+
+```xml
+<{{title}}>
+{{keys}}
+{{content}}
+</{{title}}>
+```
+
+Example output:
 
 ```
 The following is an index of important characters and ideas from the story:
 
-[Elena Valcieri]
+<Elena Valcieri>
 (elena, valcieri, beth)
-Elena Valcieri is the matriarch of House Valcieri...
+Matriarch of House Valcieri...
+</Elena Valcieri>
 
-[House Caldera]
+<House Caldera>
 (caldera, the caldera)
-A minor noble house based in the eastern reaches...
+Minor noble house based in the eastern reaches...
+</House Caldera>
 
 End Index
 ```
 
-Entries with no primary keywords omit the alias line entirely.
+Templates are fully customizable.
+
+Bracket style:
+
+```
+[{{title}}]
+{{keys}}
+{{content}}
+```
+
+Markdown style:
+
+```markdown
+**{{title}}**
+{{keys}}
+{{content}}
+```
+
+---
 
 ## Settings
 
-All options are in the **Structurize** drawer under Extensions settings.
+Structurize can be configured from the Extensions drawer.
 
-| Setting | Default | Description |
-|---|---|---|
-| Enable formatting | on | Master toggle |
-| Prepend global header | on | Adds a line before all entries |
-| Header text | *"The following is an index..."* | Configurable header |
-| Title format | `[Title]` | How entry titles are rendered (see formats below) |
-| Append global footer | on | Adds a line after all entries |
-| Footer text | `\nEnd Index\n` | Configurable footer |
+| Setting                   | Default                        | Description                                           |
+| ------------------------- | ------------------------------ | ----------------------------------------------------- |
+| **Enable formatting**     | On                             | Enables or disables all Structurize processing.       |
+| **Verbose logging**       | Off                            | Writes diagnostic information to the browser console. |
+| **Prepend global header** | On                             | Adds a header before all formatted lorebook entries.  |
+| **Header text**           | *The following is an index...* | The text used for the global header.                  |
+| **Entry template**        | `<{{title}}>...`               | Template applied to every activated entry.            |
+| **Append global footer**  | On                             | Adds a footer after all formatted lorebook entries.   |
+| **Footer text**           | `End Index`                    | The text used for the global footer.                  |
 
-### Title formats
-
-| Format | Output |
-|---|---|
-| `[Title]` | `[Elena Valcieri]` |
-| `**Title**` | `**Elena Valcieri**` |
-| `### Title` | `### Elena Valcieri` |
-| `<Title_No_Spaces>` | `<Elena_Valcieri>...</Elena_Valcieri>` |
-| `<Title As Is>` | `<Elena Valcieri>...</Elena Valcieri>` |
-
-For XML formats the alias line appears inside the tag, between the opening tag and the content.
+---
 
 ## Notes
 
-- Header and footer are synthetic entries injected only into the in-memory scan state. Nothing is written to disk.
-- The extension is idempotent: re-firing the scan event on the same state (recursive activations, force-activations) will not double-format entries.
-- Token budget is calculated by ST core before this extension runs, so header and footer text add tokens beyond the budget. Keep them short.
+* Structurize never modifies your lorebook files.
+* Formatting occurs only in memory at injection time.
+* Header and footer text consume a small number of additional tokens.
+* If an entry is activated multiple times during a generation, Structurize formats it only once.

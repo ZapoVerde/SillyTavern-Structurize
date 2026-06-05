@@ -1,13 +1,13 @@
 /**
  * @file data/default-user/extensions/structurize/index.js
  * @stamp {"utc":"2026-06-04T00:00:00.000Z"}
- * @version 1.0.7
+ * @version 1.0.8
  * @architectural-role Feature Entry Point
  * @description
  * SillyTavern Structurize — post-scan lorebook formatter that intercepts
  * the WORLDINFO_SCAN_DONE event and rewrites each activated entry's content
- * with a structured `[Title]\ntext` header format before injection into the
- * prompt. Optionally prepends a global header line to the full entry block.
+ * using a user-defined injection template before injection into the prompt.
+ * Optionally prepends a global header line to the full entry block.
  *
  * No backend, no heavy dependencies. The transform runs entirely in the
  * post-scan hook that ST 1.15+ exposes for exactly this purpose. Optionally
@@ -60,7 +60,7 @@ const DEFAULTS = {
     verbose: false,
     showHeader: true,
     headerText: 'The following is an index of important characters and ideas from the story:',
-    titleFormat: 'bracket',   // 'bracket' → [Title] | 'bold' → **Title** | 'heading' → ### Title
+    entryTemplate: '<{{title}}>\n{{keys}}\n{{content}}\n</{{title}}>',
     showFooter: true,
     footerText: '\nEnd Index\n',
 };
@@ -73,11 +73,6 @@ function log(event, data) {
     if (!getSettings().verbose) return;
     if (data !== undefined) console.log(`[${EXT_NAME}] ${event}`, data);
     else console.log(`[${EXT_NAME}] ${event}`);
-}
-
-function error(event, data) {
-    if (data !== undefined) console.error(`[${EXT_NAME}] ${event}`, data);
-    else console.error(`[${EXT_NAME}] ${event}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -93,19 +88,6 @@ function loadSettings() {
 
 function getSettings() {
     return extension_settings[EXT_NAME];
-}
-
-// ---------------------------------------------------------------------------
-// Formatting helpers
-// ---------------------------------------------------------------------------
-
-function formatTitle(title, fmt) {
-    switch (fmt) {
-        case 'bold':    return `**${title}**`;
-        case 'heading': return `### ${title}`;
-        case 'bracket':
-        default:        return `[${title}]`;
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -139,20 +121,11 @@ function formatEntries(scanState) {
             log(`skip (no title/content): uid=${entry.uid}`);
             continue;
         }
-        const keys    = Array.isArray(entry.key) && entry.key.length ? `(${entry.key.join(', ')})` : '';
-        if (settings.titleFormat === 'xml') {
-            const tag = entry.comment.replace(/\s+/g, '_');
-            const body = keys ? `${keys}\n${entry.content}` : entry.content;
-            entry.content = `<${tag}>\n${body}\n</${tag}>`;
-        } else if (settings.titleFormat === 'xml_raw') {
-            const body = keys ? `${keys}\n${entry.content}` : entry.content;
-            entry.content = `<${entry.comment}>\n${body}\n</${entry.comment}>`;
-        } else {
-            const lines = [formatTitle(entry.comment, settings.titleFormat)];
-            if (keys) lines.push(keys);
-            lines.push(entry.content);
-            entry.content = lines.join('\n');
-        }
+        const keys = Array.isArray(entry.key) && entry.key.length ? `(${entry.key.join(', ')})` : '';
+        entry.content = settings.entryTemplate
+            .replace(/\{\{title\}\}/g, entry.comment)
+            .replace(/\{\{keys\}\}/g, keys)
+            .replace(/\{\{content\}\}/g, entry.content);
         entry._stx = true;
         formatted++;
         log(`formatted entry: "${entry.comment}"`);
@@ -211,14 +184,9 @@ async function addSettingsPanel() {
             </label>
             <label for="stx_header_text">Header text</label>
             <textarea id="stx_header_text" class="text_pole" rows="2"></textarea>
-            <label for="stx_title_format">Title format</label>
-            <select id="stx_title_format" class="text_pole">
-                <option value="bracket">[Title]</option>
-                <option value="bold">**Title**</option>
-                <option value="heading">### Title</option>
-                <option value="xml">&lt;Title_No_Spaces&gt;...&lt;/Title_No_Spaces&gt;</option>
-                <option value="xml_raw">&lt;Title As Is&gt;...&lt;/Title As Is&gt;</option>
-            </select>
+            <label for="stx_entry_template">Entry template</label>
+            <textarea id="stx_entry_template" class="text_pole" rows="4"></textarea>
+            <small>Placeholders: {{title}}, {{keys}}, {{content}}. {{keys}} is empty when an entry has no keywords - put it on its own line to avoid a blank line in those entries.</small>
             <label class="checkbox_label">
                 <input type="checkbox" id="stx_show_footer" />
                 <span>Append global footer</span>
@@ -238,7 +206,7 @@ async function addSettingsPanel() {
     $('#stx_verbose').prop('checked', s.verbose);
     $('#stx_show_header').prop('checked', s.showHeader);
     $('#stx_header_text').val(s.headerText);
-    $('#stx_title_format').val(s.titleFormat);
+    $('#stx_entry_template').val(s.entryTemplate);
     $('#stx_show_footer').prop('checked', s.showFooter);
     $('#stx_footer_text').val(s.footerText);
 
@@ -259,8 +227,8 @@ async function addSettingsPanel() {
         getSettings().headerText = this.value;
         saveSettingsDebounced();
     });
-    $('#stx_title_format').on('change', function () {
-        getSettings().titleFormat = this.value;
+    $('#stx_entry_template').on('input', function () {
+        getSettings().entryTemplate = this.value;
         saveSettingsDebounced();
     });
     $('#stx_show_footer').on('change', function () {
