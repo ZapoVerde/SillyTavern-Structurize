@@ -1,5 +1,7 @@
 # Structurize
 
+**[Released]**
+
 When SillyTavern injects lorebook entries into the prompt, the AI receives only the entry's body text. The entry title, aliases, and trigger keywords are discarded before the prompt is assembled.
 
 This is often harmless when the entry repeats its own name, but if the entry does not do that, we lose the most important part of the context.
