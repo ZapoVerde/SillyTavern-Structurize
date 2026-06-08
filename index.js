@@ -1,7 +1,7 @@
 /**
  * @file data/default-user/extensions/structurize/index.js
- * @stamp {"utc":"2026-06-04T00:00:00.000Z"}
- * @version 1.0.8
+ * @stamp {"utc":"2026-06-08T00:00:00.000Z"}
+ * @version 1.0.9
  * @architectural-role Feature Entry Point
  * @description
  * SillyTavern Structurize — post-scan lorebook formatter that intercepts
@@ -141,14 +141,14 @@ function formatEntries(scanState) {
                                       + (activatedMap.has(FOOTER_KEY) ? 1 : 0);
 
     if (hasReal && settings.showHeader && settings.headerText) {
-        activatedMap.set(HEADER_KEY, { content: settings.headerText, position: 0, order: HEADER_ORDER });
+        activatedMap.set(HEADER_KEY, { content: settings.headerText, position: 0, order: HEADER_ORDER, _stx_synthetic: true });
         log('upserted header entry');
     } else {
         activatedMap.delete(HEADER_KEY);
     }
 
     if (hasReal && settings.showFooter && settings.footerText) {
-        activatedMap.set(FOOTER_KEY, { content: settings.footerText, position: 0, order: FOOTER_ORDER });
+        activatedMap.set(FOOTER_KEY, { content: settings.footerText, position: 0, order: FOOTER_ORDER, _stx_synthetic: true });
         log('upserted footer entry');
     } else {
         activatedMap.delete(FOOTER_KEY);
@@ -247,4 +247,12 @@ async function addSettingsPanel() {
 
 loadSettings();
 eventSource.on(event_types.WORLDINFO_SCAN_DONE, formatEntries);
+// Remove synthetic header/footer entries before WORLD_INFO_ACTIVATED reaches other extensions
+// (e.g. SillyTavern-WorldInfoInfo), which expect every entry to have a valid .world property.
+// Structurize loads before WorldInfoInfo alphabetically, so this handler fires first.
+eventSource.on(event_types.WORLD_INFO_ACTIVATED, (entryList) => {
+    for (let i = entryList.length - 1; i >= 0; i--) {
+        if (entryList[i]._stx_synthetic) entryList.splice(i, 1);
+    }
+});
 addSettingsPanel();
